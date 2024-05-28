@@ -1,6 +1,6 @@
 import torch
 from torch import nn, Tensor
-from zeta.nn import Attention, FeedForward
+from zeta.nn import Attention, FeedForward, OutputHead
 from mambabyte.model import MambaConfig, Mamba
 from zamba_torch.omni_proj import OmniProj
 
@@ -327,6 +327,101 @@ class ZambaBlock(nn.Module):
         x = self.fractral(x + second_fractral)
 
         return self.norm(x)
+
+
+class Zamba(nn.Module):
+    """
+    Zamba class represents the main model architecture.
+
+    Args:
+        dim (int): The dimension of the model.
+        heads (int): The number of attention heads.
+        dim_head (int): The dimension of each attention head.
+        d_state (int): The dimension of the state.
+        dt_rank (int): The rank of the dynamic tensor.
+        d_conv (int): The dimension of the convolutional layer.
+        depth (int): The number of layers in the model.
+        vocab_size (int): The size of the vocabulary.
+        max_seq_len (int): The maximum sequence length.
+        post_embed_norm (bool): Whether to apply layer normalization after token embedding.
+
+    Attributes:
+        dim (int): The dimension of the model.
+        heads (int): The number of attention heads.
+        dim_head (int): The dimension of each attention head.
+        d_state (int): The dimension of the state.
+        dt_rank (int): The rank of the dynamic tensor.
+        d_conv (int): The dimension of the convolutional layer.
+        vocab_size (int): The size of the vocabulary.
+        max_seq_len (int): The maximum sequence length.
+        post_embed_norm (bool): Whether to apply layer normalization after token embedding.
+        layers (nn.ModuleList): List of ZambaBlock layers.
+        embed (nn.Embedding): Token embedding layer.
+        norm (nn.LayerNorm): Layer normalization layer.
+
+    """
+
+    def __init__(
+        self,
+        dim: int = None,
+        heads: int = None,
+        dim_head: int = None,
+        d_state: int = None,
+        dt_rank: int = None,
+        d_conv: int = None,
+        depth: int = 6,
+        vocab_size: int = None,
+        max_seq_len: int = None,
+        post_embed_norm: bool = True,
+        output_head_on: bool = True,
+    ):
+        super().__init__()
+        self.dim = dim
+        self.heads = heads
+        self.dim_head = dim_head
+        self.d_state = d_state
+        self.dt_rank = dt_rank
+        self.d_conv = d_conv
+        self.vocab_size = vocab_size
+        self.max_seq_len = max_seq_len
+        self.post_embed_norm = post_embed_norm
+        self.output_head_on = output_head_on
+
+        # Layers
+        self.layers = nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(
+                ZambaBlock(
+                    dim=dim,
+                    heads=heads,
+                    dim_head=dim_head,
+                    d_state=d_state,
+                    dt_rank=dt_rank,
+                    d_conv=d_conv,
+                )
+            )
+
+        # Embedding
+        self.embed = nn.Embedding(vocab_size, dim)
+
+        # Norm
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, x) -> Tensor:
+        # Embed tokens
+        x = self.embed(x)
+
+        if self.post_embed_norm is not False:
+            x = self.norm(x)
+
+        for layer in self.layers:
+            out = layer(x)
+
+        # return OutputHead(self.dim, 1, self.vocab_size)(x)
+        if self.output_head_on is not False:
+            out = OutputHead(self.dim, 1, self.vocab_size)(x)
+        else:
+            return out
 
 
 # x = torch.randn(1, 512, 512)
