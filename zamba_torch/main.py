@@ -71,7 +71,7 @@ class MambaFractralBlock(nn.Module):
         # Norm
         self.norm = nn.LayerNorm(dim)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
         """
         Forward pass of the MambaFractralBlock.
 
@@ -83,7 +83,7 @@ class MambaFractralBlock(nn.Module):
 
         """
         for layer in self.layers:
-            x = layer(x) + x
+            x = layer(x, *args, **kwargs) + x
         return self.norm(x)
 
 
@@ -150,7 +150,7 @@ class ZambaSharedBlock(nn.Module):
             post_act_ln=True,
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
         """
         Forward pass of the ZambaSharedBlock module.
 
@@ -161,7 +161,7 @@ class ZambaSharedBlock(nn.Module):
             Tensor: The output tensor after performing attention and feed-forward operations.
 
         """
-        x, _ = self.attention(x)
+        x, _ = self.attention(x, *args, **kwargs)
         x = self.norm(x)
         x = self.norm(self.ffn(x))
         return x
@@ -273,7 +273,7 @@ class ZambaBlock(nn.Module):
 
         #
 
-    def forward(self, x: Tensor, mask: Tensor = None) -> Tensor:
+    def forward(self, x: Tensor, mask: Tensor = None, *args, **kwargs) -> Tensor:
         """
         Forward pass of the ZambaBlock module.
 
@@ -290,7 +290,7 @@ class ZambaBlock(nn.Module):
 
         skip = x
         # x = self.norm(self.fractral(x))
-        x = self.fractral(x)
+        x = self.fractral(x, *args, **kwargs)
         print(x.shape)
         first_fractral = x
 
@@ -300,14 +300,14 @@ class ZambaBlock(nn.Module):
         concated = OmniProj(s, seq, dim=1)(concated)
 
         # Shared
-        x = self.shared(concated)
+        x = self.shared(concated, *args, **kwargs)
 
         # Proj
         x = self.proj(x)
 
         # Second Fractral Mamba
         print(x.shape)
-        x = self.fractral2(x + first_fractral)
+        x = self.fractral2(x + first_fractral, *args, **kwargs)
         # print(x.shape)
         print(f"Second Fractral: {x.shape}")
         second_fractral = x
@@ -318,13 +318,13 @@ class ZambaBlock(nn.Module):
         x = OmniProj(s, seq, dim=1)(x)
 
         # Shared
-        x = self.shared(x)
+        x = self.shared(x, *args, **kwargs)
 
         # Proj
         x = self.proj(x)
 
         # Third Fractral Mamba
-        x = self.fractral(x + second_fractral)
+        x = self.fractral(x + second_fractral, *args, **kwargs)
 
         return self.norm(x)
 
